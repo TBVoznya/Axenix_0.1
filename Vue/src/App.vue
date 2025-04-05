@@ -13,28 +13,29 @@
         <button class="add-button" @click="togglePanel">
           <img src="@/assets/directions_walk.png" alt="icon1" class="btn-icon" />
           Добавить
-      </button>
+        </button>
       </div>
       <div v-if="showPanel" class="add-panel">
-          <p>Выберите тип:</p>
-          <button class="panel-item">Элемент 1</button>
-          <button class="panel-item">Элемент 2</button>
-          <button class="panel-item">Элемент 3</button>
-        </div>
+        <p>Выберите тип:</p>
+        <button class="panel-item" @click="addCustomer">Покупатель</button>
+        <button class="panel-item" @click="addShelf">Полка</button>
+        <button class="panel-item" @click="addProduct">Товар</button>
+      </div>
       <div class="statistic">
-        <button class="stat-button">
+        <button class="stat-button" @click="getStatistics">
           <img src="@/assets/add_circle.png" alt="icon1" class="btn-icon" />
           Статистика
         </button>
       </div>
       <div class="model-viewer-container">
-        <ModelViewer />
+        <ModelViewer :storeData="storeData" :newCustomers="newCustomers" :newShelves="newShelves" :newProducts="newProducts"/>
       </div>
     </main>
   </div>
 </template>
 
 <script>
+import axios from 'axios'
 import ModelViewer from './components/ModelViewer.vue'
 
 export default {
@@ -43,13 +44,83 @@ export default {
   },
   data() {
     return {
-      showPanel: false
+      storeData: null,
+      showPanel: false,
+      newCustomers: [],
+      newShelves: [],
+      newProducts: []
     }
   },
   methods: {
     togglePanel() {
       this.showPanel = !this.showPanel
+    },
+    addCustomer() {
+      const newCustomer = { 
+        name: "Новый покупатель", 
+        profile: "любит скидки",
+        position: { x: 0, y: 0, z: 0 } 
+      }
+      axios.post('/api/customer', newCustomer)
+        .then(response => {
+          console.log("Покупатель добавлен", response)
+          this.newCustomers.push(response.data)
+          this.showPanel = false
+        })
+        .catch(error => {
+          console.error("Ошибка добавления покупателя", error)
+        })
+    },
+    addShelf() {
+      const newShelf = {
+        type: "Стандартная",
+        position: { x: 0, y: 0, z: 0 },
+        capacity: 100
+      }
+      axios.post('/api/shelf', newShelf)
+        .then(response => {
+          console.log("Полка добавлена", response)
+          this.newShelves.push(response.data)
+          this.showPanel = false
+        })
+        .catch(error => {
+          console.error("Ошибка добавления полки", error)
+        })
+    },
+    addProduct() {
+      const newProduct = {
+        name: "Новый товар",
+        category: "Разное",
+        price: 100
+      }
+      axios.post('/api/product', newProduct)
+        .then(response => {
+          console.log("Товар добавлен", response)
+          this.newProducts.push(response.data)
+          this.showPanel = false
+        })
+        .catch(error => {
+          console.error("Ошибка добавления товара", error)
+        })
+    },
+    getStatistics() {
+      axios.get('/api/statistics')
+        .then(response => {
+          console.log("Статистика:", response.data)
+        })
+        .catch(error => {
+          console.error("Ошибка получения статистики", error)
+        })
     }
+  },
+  mounted() {
+    axios.get('/api/store')
+      .then(response => {
+        this.storeData = response.data
+      })
+      .catch(error => {
+        console.error('Ошибка получения данных магазина', error)
+      })
   }
 }
 </script>
@@ -83,10 +154,10 @@ header {
   text-align: center;
   box-shadow: 0 20px 28px rgba(0, 0, 0, 0.3);
   color: #fff;
-  padding-right: 20px; /* Отступ от правого края */
+  padding-right: 20px;
   display: flex;
-  justify-content: space-between; /* Размещение элементов по бокам */
-  align-items: center; /* Центрирование по вертикали */
+  justify-content: space-between;
+  align-items: center;
 }
 
 header h1 {
@@ -121,79 +192,39 @@ header h2 {
 
 .user-icon {
   position: absolute;
-  right: 20px; /* Прижимает к правому краю */
-  top: 20px; /* Можно регулировать по вертикали */
+  right: 20px;
+  top: 20px;
 }
 
 .user-icon img {
-  width: 110px; /* Размер иконки */
-  height: 110px; /* Размер иконки */
+  width: 110px;
+  height: 110px;
 }
 
-.add-checkbox {
-  /* state-layer */
-  position: static;
-  width: 160px;
-  height: 80px;
-  /* Автолейаут */
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 12;
-  padding: 16px 20px 16px 16px;
-
-
-  /* Inside Auto Layout */
-  flex: none;
-  order: 0;
-  align-self: stretch;
-  flex-grow: 1;
-  margin: 0px 0px;
-}
 main section {
   margin-top: 400px;
 }
 
-main section h3 {
-  margin-bottom: 10px;
-  color: #444;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 5px;
-}
-
-ul {
-  padding-left: 20px;
-}
-
 .stat-button{
-  /* state-layer */
   position: static;
   width: 160px;
   height: 60px;
-  /* Автолейаут */
   display: flex;
   flex-direction: row;
   justify-content: center;
   align-items: center;
   gap: 12px;
   padding: 16px 20px 16px 16px;
-
-
-  /* Дополнительные стили */
   background-color: rgb(255, 140, 25);
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  color: rgb(255, 255, 255);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   font-family: Oswald;
   font-size: 20px;
   font-weight: 600;
   line-height: 36px;
-  letter-spacing: 0%;
-  text-align: left;
 }
 
 .stat-button:hover{
@@ -207,11 +238,9 @@ ul {
 }
 
 .add-button {
-  /* state-layer */
   position: static;
   width: 160px;
   height: 60px;
-  /* Автолейаут */
   display: flex;
   flex-direction: row;
   justify-content: center;
@@ -219,28 +248,15 @@ ul {
   gap: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   padding: 16px 20px 16px 16px;
-
-  /* Inside Auto Layout */
-  flex: none;
-  order: 0;
-  align-self: stretch;
-  flex-grow: 1;
-  margin: 0px 0px;
-
-  /* Дополнительные стили */
   background-color: #6200ee;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  color: rgb(255, 255, 255);
   font-family: Oswald;
   font-size: 20px;
   font-weight: 600;
   line-height: 36px;
-  letter-spacing: 0%;
-  text-align: left;
-  
 }
 
 .add-button:hover {
@@ -267,9 +283,11 @@ ul {
   position: absolute;  
   top: 290px; 
   left: 0;
-  height: 500px;
+  height: auto;
   width: 380px; 
+  z-index: 1001;
 }
+
 .panel-item {
   padding: 8px 12px;
   background-color: #6200ee;
@@ -285,5 +303,7 @@ ul {
   background-color: #3700b3;
 }
 
-
+.model-viewer-container {
+  margin-top: 180px;
+}
 </style>
