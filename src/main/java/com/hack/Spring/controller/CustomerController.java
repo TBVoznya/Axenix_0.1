@@ -2,16 +2,17 @@ package com.hack.Spring.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.hack.Spring.dto.CustomerDto;
 
 @RestController
 @RequestMapping("/api")
 public class CustomerController {
 
+    
     @GetMapping
     public List<CustomerDto> getAllCustomers() {
         List<CustomerDto> customers = new ArrayList<>();

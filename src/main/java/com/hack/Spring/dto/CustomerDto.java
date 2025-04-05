@@ -1,4 +1,4 @@
-package com.hack.Spring.controller;
+package com.hack.Spring.dto;
 
 public class CustomerDto {
     private String id;

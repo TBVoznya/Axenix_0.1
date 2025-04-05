@@ -1,4 +1,4 @@
-package com.hack.Spring.controller;
+package com.hack.Spring.dto;
 
 import java.util.List;
 
