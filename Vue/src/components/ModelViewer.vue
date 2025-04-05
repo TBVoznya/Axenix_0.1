@@ -60,53 +60,157 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import axios from 'axios';
 
-
 export default {
   name: 'ModelViewer',
   data() {
-  return {
-    selectedShelfName: '',
-    showInfoPanel: false,
-    selectedShelf: null,
-    shelfProducts: {}, // Хранение продуктов для каждой полки
-    currentShelfProducts: [], // Продукты текущей выбранной полки
-    newProduct: { name: '', quantity: 1, price: 0.0 } // Данные нового продукта
-  };
-},
+    return {
+      selectedShelfName: '',
+      showInfoPanel: false,
+      selectedShelf: null,
+      shelfProducts: {},
+      currentShelfProducts: [],
+      newProduct: { name: '', quantity: 1, price: 0.0 },
+      npcList: [],
+      spawnInterval: null,
+      spawnDelay: 5000,
+      storeEntrance: new THREE.Vector3(-12, 0, 6),
+      waitingSpot: new THREE.Vector3(0, 0, 15),
+      scene: null,
+      loader: null,
+      shelfModels: []
+    };
+  },
   computed: {
     panelHeight() {
-      // Рассчитываем высоту панели: 50px на заголовок + 40px на каждую строку
-      const baseHeight = 300; // Высота заголовка и кнопок
-      const rowHeight = 40; // Высота одной строки
-      const maxHeight = 400; // Максимальная высота панели
+      const baseHeight = 300;
+      const rowHeight = 40;
+      const maxHeight = 400;
       const calculatedHeight = baseHeight + this.currentShelfProducts.length * rowHeight;
-
       return Math.min(calculatedHeight, maxHeight) + 'px';
     }
   },
   methods: {
-  addProduct() {
-    if (this.newProduct.name.trim() && this.newProduct.quantity > 0 && this.newProduct.price >= 0) {
-      this.currentShelfProducts.push({ 
-        name: this.newProduct.name.trim(), 
-        quantity: this.newProduct.quantity,
-        price: this.newProduct.price
+    addProduct() {
+      if (this.newProduct.name.trim() && this.newProduct.quantity > 0 && this.newProduct.price >= 0) {
+        this.currentShelfProducts.push({ 
+          name: this.newProduct.name.trim(), 
+          quantity: this.newProduct.quantity,
+          price: this.newProduct.price
+        });
+        this.newProduct.name = '';
+        this.newProduct.quantity = 1;
+        this.newProduct.price = 0.0;
+      } else {
+        alert('Введите корректные данные для продукта!');
+      }
+    },
+    removeProduct(index) {
+      this.currentShelfProducts.splice(index, 1);
+    },
+    closeInfoPanel() {
+      this.showInfoPanel = false;
+    },
+    createNpc(shelfPosition, modelIndex = 0) {
+      const modelPath = `/Man_${modelIndex}.glb`;
+      
+      this.loader.load(modelPath, (gltf) => {
+        const npc = gltf.scene;
+        npc.scale.set(0.5, 0.5, 0.5);
+        npc.position.copy(this.storeEntrance);
+        npc.rotation.set(0, Math.PI, 0);
+        this.scene.add(npc);
+        this.npcList.push(npc);
+
+        const route = [
+          shelfPosition,    
+          this.waitingSpot,
+          this.storeEntrance 
+        ];
+
+        let currentTargetIndex = 0;
+        const speed = 0.05;
+        let isWaiting = false;
+        let animationId = null;
+
+        const moveNpc = () => {
+          if (isWaiting) {
+            animationId = requestAnimationFrame(moveNpc);
+            return;
+          }
+
+          const targetPosition = route[currentTargetIndex];
+          const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
+          
+          // Поворачиваем NPC в направлении движения
+          npc.rotation.y = Math.atan2(direction.x, direction.z);
+          
+          // Двигаем NPC
+          npc.position.add(direction.multiplyScalar(speed));
+
+          // Проверяем достижение цели
+          if (npc.position.distanceTo(targetPosition) < 0.5) {
+            // Если это последняя точка - удаляем NPC
+            if (currentTargetIndex === route.length - 1) {
+              this.removeNpc(npc);
+              if (animationId) cancelAnimationFrame(animationId);
+              return;
+            }
+            
+            // Ожидание 3-4 секунды
+            isWaiting = true;
+            setTimeout(() => {
+              isWaiting = false;
+              currentTargetIndex++;
+            }, 3000 + Math.random() * 1000);
+          }
+
+          animationId = requestAnimationFrame(moveNpc);
+        };
+
+        moveNpc();
+      }, undefined, (error) => {
+        console.error('Ошибка загрузки модели NPC:', error);
       });
-      // Сброс формы
-      this.newProduct.name = '';
-      this.newProduct.quantity = 1;
-      this.newProduct.price = 0.0;
-    } else {
-      alert('Введите корректные данные для продукта!');
+    },
+    removeNpc(npc) {
+      this.scene.remove(npc);
+      this.npcList = this.npcList.filter(item => item !== npc);
+    },
+    startNpcSpawning() {
+  const shelfPositions = this.shelfModels.map(shelf => {
+    const box = new THREE.Box3().setFromObject(shelf);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    // Используем только X и Z координаты, Y оставляем на уровне пола (0)
+    return new THREE.Vector3(center.x, 0, center.z);
+  });
+
+  if (shelfPositions.length === 0) {
+    console.warn('Нет полок для посещения NPC');
+    return;
+  }
+
+  // Создаем 3 NPC сразу при старте
+  for (let i = 0; i < 2; i++) {
+    const randomShelf = shelfPositions[Math.floor(Math.random() * shelfPositions.length)];
+    const randomModel = Math.floor(Math.random() * 3);
+    this.createNpc(randomShelf, randomModel);
+  }
+
+  // Запускаем цикличный спавн
+  this.spawnInterval = setInterval(() => {
+    const randomShelf = shelfPositions[Math.floor(Math.random() * shelfPositions.length)];
+    const randomModel = Math.floor(Math.random() * 3);
+    this.createNpc(randomShelf, randomModel);
+  }, this.spawnDelay);
+},
+    stopNpcSpawning() {
+      if (this.spawnInterval) {
+        clearInterval(this.spawnInterval);
+        this.spawnInterval = null;
+      }
     }
   },
-  removeProduct(index) {
-    this.currentShelfProducts.splice(index, 1);
-  },
-  closeInfoPanel() {
-    this.showInfoPanel = false;
-  }
-},
   mounted() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xffffff);
@@ -115,6 +219,9 @@ export default {
     renderer.setSize(1200, 800);
 
     this.$refs.modelViewer.appendChild(renderer.domElement);
+
+    this.scene = scene;
+    this.loader = new GLTFLoader();
 
     const light = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
     light.position.set(0, 300, 0);
@@ -131,95 +238,65 @@ export default {
       side: THREE.DoubleSide,
     });
 
-    const highlightGeometry = new THREE.PlaneGeometry(5, 5); // размер можно будет менять
+    const highlightGeometry = new THREE.PlaneGeometry(5, 5);
     const highlightPlane = new THREE.Mesh(highlightGeometry, highlightMaterial);
-    highlightPlane.rotation.x = -Math.PI / 2; // горизонтально (если над полкой сверху)
-    highlightPlane.visible = false; // по умолчанию скрыт
+    highlightPlane.rotation.x = -Math.PI / 2;
+    highlightPlane.visible = false;
     scene.add(highlightPlane);
 
-    // Raycaster для отслеживания кликов
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const shelfModels = []; // Массив для хранения моделей
 
-    let selectedShelf = null; // Полка, которую перемещаем
-    let isDragging = false; // Флаг перемещения
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Горизонтальная плоскость
-    const planeIntersect = new THREE.Vector3(); // Точка пересечения с плоскостью
+    let selectedShelf = null;
+    let isDragging = false;
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const planeIntersect = new THREE.Vector3();
     let controlsEnabled = true;
 
-    // PROPS LOADING
-    const loader = new GLTFLoader();
-    loader.load(
-      '/MainScene(Textured+floor).glb', 
-      (gltf) => {
-        const model = gltf.scene;
-        model.scale.set(1, 1, 1);
-        model.position.set(-5, 0, 0);
-        scene.add(model);
-      },
-      (xhr) => {
-        console.log(`Загрузка модели: ${(xhr.loaded / xhr.total) * 100}% завершено`);
-      },
-      (error) => {
-        console.error('Ошибка загрузки модели:', error);
-      }
-    );
+    // Загрузка моделей
+    this.loader.load('/MainScene(Textured+floor).glb', (gltf) => {
+      const model = gltf.scene;
+      model.scale.set(1, 1, 1);
+      model.position.set(-5, 0, 0);
+      scene.add(model);
+    });
 
-    loader.load(
-      '/Shelter_Full(Textured+color).glb', 
-      (gltf) => {
-        const shelfModel = gltf.scene;
-        shelfModel.scale.set(1, 1, 1); 
-        shelfModel.position.set(10, 0, 4);
-        shelfModel.rotation.set(0, 0, 0); 
-        shelfModel.name = 'Полка 1';
-        scene.add(shelfModel);
-        shelfModels.push(shelfModel); // Добавляем в список
-      },
-      (xhr) => {
-        console.log(`Загрузка полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
-      },
-      (error) => {
-        console.error('Ошибка загрузки полки:', error);
-      }
-    );
+    this.loader.load('/Shelter_Full(Textured+color).glb', (gltf) => {
+      const shelfModel = gltf.scene;
+      shelfModel.scale.set(1, 1, 1);
+      shelfModel.position.set(10, 0, 4);
+      shelfModel.name = 'Полка 1';
+      scene.add(shelfModel);
+      this.shelfModels.push(shelfModel);
+      
+      // Автозапуск NPC после загрузки первой полки
+      this.startNpcSpawning();
+    });
 
-    loader.load(
-      '/Shelter_Empty(Textured+color).glb', 
-      (gltf) => {
-        const shelfModel2 = gltf.scene;
-        shelfModel2.scale.set(1, 1, 1);
-        shelfModel2.position.set(10, 0, 10);
-        shelfModel2.rotation.set(0, 0, 0); 
-        shelfModel2.name = 'Полка 2';
-        scene.add(shelfModel2);
-        shelfModels.push(shelfModel2); // Добавляем в список
-      },
-      (xhr) => {
-        console.log(`Загрузка второй полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
-      },
-      (error) => {
-        console.error('Ошибка загрузки второй полки:', error);
-      }
-    );
+    this.loader.load('/Shelter_Empty(Textured+color).glb', (gltf) => {
+      const shelfModel2 = gltf.scene;
+      shelfModel2.scale.set(1, 1, 1);
+      shelfModel2.position.set(10, 0, 10);
+      shelfModel2.name = 'Полка 2';
+      scene.add(shelfModel2);
+      this.shelfModels.push(shelfModel2);
+    });
 
-    // Обработчик кликов
+    // Обработчики событий
     const onMouseClick = (event) => {
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(shelfModels, true);
+      const intersects = raycaster.intersectObjects(this.shelfModels, true);
 
       if (intersects.length > 0) {
         let clickedObject = intersects[0].object;
-
         let shelf = clickedObject;
-        while (shelf.parent && !shelfModels.includes(shelf)) {
+        while (shelf.parent && !this.shelfModels.includes(shelf)) {
           shelf = shelf.parent;
         }
-        // Подсветка
+
         const box = new THREE.Box3().setFromObject(shelf);
         const center = new THREE.Vector3();
         box.getCenter(center);
@@ -237,35 +314,31 @@ export default {
         this.showInfoPanel = true;
         this.selectedShelf = shelf;
 
-        // Инициализация продуктов для полки, если их еще нет
         if (!this.shelfProducts[shelfName]) {
           this.shelfProducts[shelfName] = [];
         }
         this.currentShelfProducts = this.shelfProducts[shelfName];
       } 
     };
-    
-    // Перемещение полок
+
     const onMouseDblClick = (event) => {
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(shelfModels, true);
+      const intersects = raycaster.intersectObjects(this.shelfModels, true);
 
       if (intersects.length > 0) {
-        selectedShelf = intersects[0].object.parent; // Получаем всю полку
+        selectedShelf = intersects[0].object.parent;
         isDragging = true;
-        controlsEnabled = false; // Отключаем управление камерой
-        controls.enabled = false; // Замораживаем камеру
+        controlsEnabled = false;
+        controls.enabled = false;
       }
     };
 
     const onMouseMove = (event) => {
       if (isDragging && selectedShelf) {
-        // Скрываем highlightPlane во время перемещения
         highlightPlane.visible = false;
-
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -283,118 +356,67 @@ export default {
     const onMouseUp = () => {
       if (isDragging) {
         isDragging = false;
-
-        // Показываем highlightPlane после завершения перемещения
         if (selectedShelf) {
           highlightPlane.visible = true;
         }
-
         selectedShelf = null;
-        controlsEnabled = true; // Включаем управление камерой
-        controls.enabled = true; // Размораживаем камеру
+        controlsEnabled = true;
+        controls.enabled = true;
       }
     };
+
     const onMouseWheel = (event) => {
       if (selectedShelf) {
-        const rotationSpeed = 0.5; // Скорость вращения
+        const rotationSpeed = 0.5;
         selectedShelf.rotation.z += event.deltaY * rotationSpeed * 0.01;
       }
     };
 
-    // Слушаем событие клика
     window.addEventListener('click', onMouseClick, false);
-    // Двойной клик
     window.addEventListener('dblclick', onMouseDblClick, false);
     window.addEventListener('mousemove', onMouseMove, false);
     window.addEventListener('mouseup', onMouseUp, false);
     window.addEventListener('wheel', onMouseWheel, false);
 
-    // PROPS NPC
-    const createNpc = (position, modelIndex = 0) => {
-      const modelPath = `/Man_${modelIndex}.glb`;
+    camera.position.set(80, 32, 65);
 
-      loader.load(modelPath, (gltf) => {
-        const npc = gltf.scene;
-        npc.scale.set(0.6, 0.6, 0.6);
-        npc.position.copy(position);
-        npc.rotation.set(0, Math.PI, 0);
-        scene.add(npc);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = false;
+    controls.minDistance = 2;
+    controls.maxDistance = 35;
 
-        const points = [
-          new THREE.Vector3(-5, 0, 8),
-          new THREE.Vector3(5, 0, 8),
-          new THREE.Vector3(5, 0, 15)
-        ];
-        let currentTargetIndex = 0;
-        const speed = 0.04;
-        let lastTurnTime = Date.now();
-        let startRotation = npc.rotation.y;
-        let targetRotation = 0;
-
-        const rotateNpc = () => {
-          const deltaTime = Date.now() - lastTurnTime;
-          const t = Math.min(deltaTime / 1000, 1);
-          npc.rotation.y = THREE.MathUtils.lerp(startRotation, targetRotation, t);
-          if (t < 1) {
-            requestAnimationFrame(rotateNpc);
-          }
-        };
-
-        const moveNpc = () => {
-          const targetPosition = points[currentTargetIndex];
-          const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
-          npc.position.add(direction.multiplyScalar(speed));
-
-          if (npc.position.distanceTo(targetPosition) < 0.1) {
-            setTimeout(() => {
-              currentTargetIndex = (currentTargetIndex + 1) % points.length;
-              targetRotation = Math.atan2(direction.z, direction.x);
-              startRotation = npc.rotation.y;
-              lastTurnTime = Date.now();
-              rotateNpc();
-            }, Math.random() * 2000 + 1000);
-          }
-
-          requestAnimationFrame(moveNpc);
-        };
-
-        moveNpc();
-      });
-    };
-
-    createNpc(new THREE.Vector3(-5, 0, 8), 0); // Man_0.glb
-    createNpc(new THREE.Vector3(0, 0, 8), 1);  // Man_1.glb
-    createNpc(new THREE.Vector3(5, 0, 8), 2);  // Man_2.glb
-
-    // Загрузка покупателей с сервера и создание NPC
+    // Загрузка покупателей с сервера
     axios.get('http://localhost:8080/api/customer')
       .then(response => {
         const customers = response.data;
         customers.forEach(c => {
-          createNpc(new THREE.Vector3(c.x, c.y, c.z));
+          this.createNpc(new THREE.Vector3(c.x, c.y, c.z));
         });
       })
       .catch(error => {
         console.error("Ошибка при загрузке покупателей:", error);
       });
 
-    camera.position.set(80, 32, 65);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; 
-    controls.dampingFactor = 0.08;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 2; 
-    controls.maxDistance = 35; 
-
     // Анимация
     const animate = () => {
       requestAnimationFrame(animate);
-      controls.update(); // Обновление контролов
+      controls.update();
       renderer.render(scene, camera);
     };
 
     animate();
+
+    // Очистка при уничтожении компонента
+    this.$once('hook:beforeDestroy', () => {
+      this.stopNpcSpawning();
+      window.removeEventListener('click', onMouseClick);
+      window.removeEventListener('dblclick', onMouseDblClick);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('wheel', onMouseWheel);
+    });
   }
 };
 </script>
@@ -417,7 +439,7 @@ export default {
 
 .info-panel {
   position: absolute;
-  top: 60%; /* чуть ниже модели */
+  top: 60%;
   left: 1%;
   width: 450px;
   background-color: rgba(0, 0, 0, 0.8);
@@ -426,9 +448,10 @@ export default {
   border-radius: 8px;
   font-size: 16px;
   z-index: 10;
-  overflow-y: auto; /* Добавляем прокрутку, если записей слишком много */
-  transition: height 0.3s ease; /* Плавное изменение высоты */
+  overflow-y: auto;
+  transition: height 0.3s ease;
 }
+
 .info-panel th, .info-panel td {
   border: 1px solid #ccc;
   padding: 8px;
@@ -443,10 +466,12 @@ export default {
 .info-panel input[type="number"] {
   width: 60px;
 }
+
 .add-product-form {
   margin-bottom: 16px;
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .add-product-form input {
@@ -454,6 +479,7 @@ export default {
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 4px;
+  width: 100px;
 }
 
 .add-product-form button {
@@ -469,13 +495,7 @@ export default {
 .add-product-form button:hover {
   background-color: #0056b3;
 }
-.add-product-form input {
-  padding: 8px;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  width: 100px; /* Увеличиваем ширину для цены */
-}
+
 .close-button {
   position: absolute;
   top: 8px;
