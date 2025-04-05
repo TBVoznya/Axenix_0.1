@@ -18,6 +18,8 @@ export default {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(1200, 800);
 
+    
+
     this.$refs.modelViewer.appendChild(renderer.domElement);
 
     const light = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
@@ -27,6 +29,24 @@ export default {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(0, 200, 100).normalize();
     scene.add(directionalLight);
+
+    const highlightMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffff00,
+  transparent: true,
+  opacity: 0.3,
+  side: THREE.DoubleSide,
+  });
+
+  const highlightGeometry = new THREE.PlaneGeometry(5, 5); // размер можно будет менять
+  const highlightPlane = new THREE.Mesh(highlightGeometry, highlightMaterial);
+  highlightPlane.rotation.x = -Math.PI / 2; // горизонтально (если над полкой сверху)
+  highlightPlane.visible = false; // по умолчанию скрыт
+  scene.add(highlightPlane);
+
+    // Raycaster для отслеживания кликов
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const shelfModels = []; // Массив для хранения моделей
 
     // PROPS LOADING
     const loader = new GLTFLoader();
@@ -54,6 +74,7 @@ export default {
         shelfModel.position.set(10, 0, 4);
         shelfModel.rotation.set(0, 0, 0); 
         scene.add(shelfModel);
+        shelfModels.push(shelfModel); // Добавляем в список
       },
       (xhr) => {
         console.log(`Загрузка полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
@@ -71,6 +92,7 @@ export default {
         shelfModel2.position.set(10, 0, 10);
         shelfModel2.rotation.set(0, 0, 0); 
         scene.add(shelfModel2);
+        shelfModels.push(shelfModel2); // Добавляем в список
       },
       (xhr) => {
         console.log(`Загрузка второй полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
@@ -79,6 +101,44 @@ export default {
         console.error('Ошибка загрузки второй полки:', error);
       }
     );
+
+
+    // Обработчик кликов
+    const onMouseClick = (event) => {
+      // Нормализуем координаты мыши
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // Считываем объекты, на которых был клик
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(shelfModels);
+
+      if (intersects.length > 0) {
+        const clickedObject = intersects[0].object;
+        const shelf = clickedObject.parent; // получаем всю полку, если она из группы
+
+        if (highlightPlane.visible && highlightPlane.userData.target === shelf) {
+          highlightPlane.visible = false;
+          highlightPlane.userData.target = null;
+        } else {
+          const box = new THREE.Box3().setFromObject(shelf);
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+
+          highlightPlane.position.set(center.x, box.min.y + 5, center.z); // немного над полом
+          highlightPlane.scale.set(
+      (box.max.x - box.min.x) / 5,
+      1,
+      (box.max.z - box.min.z) / 5
+    );
+    highlightPlane.visible = true;
+    highlightPlane.userData.target = shelf;
+  }
+}
+    };
+
+    // Слушаем событие клика
+    window.addEventListener('click', onMouseClick, false);
 
     // PROPS NPC
     const createNpc = (position) => {
@@ -137,7 +197,6 @@ export default {
     createNpc(new THREE.Vector3(-5, 0, 8));
     createNpc(new THREE.Vector3(0, 0, 8));
     createNpc(new THREE.Vector3(5, 0, 8));
-
 
     camera.position.set(80, 32, 65);
 
