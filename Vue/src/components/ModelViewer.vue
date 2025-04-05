@@ -50,6 +50,14 @@ export default {
     const mouse = new THREE.Vector2();
     const shelfModels = []; // Массив для хранения моделей
 
+    let selectedShelf = null; // Полка, которую перемещаем
+    let isDragging = false; // Флаг перемещения
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Горизонтальная плоскость
+    const planeIntersect = new THREE.Vector3(); // Точка пересечения с плоскостью
+
+
+
+
     // PROPS LOADING
     const loader = new GLTFLoader();
     loader.load(
@@ -104,9 +112,8 @@ export default {
       }
     );
 
-
-    // Обработчик кликов
-    const onMouseClick = (event) => {
+// Обработчик кликов
+const onMouseClick = (event) => {
       // Нормализуем координаты мыши
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -116,31 +123,86 @@ export default {
       const intersects = raycaster.intersectObjects(shelfModels);
 
       if (intersects.length > 0) {
-        const clickedObject = intersects[0].object;
-        const shelf = clickedObject.parent; // получаем всю полку, если она из группы
+            const clickedObject = intersects[0].object;
+            const shelf = clickedObject.parent; // получаем всю полку, если она из группы
 
-        if (highlightPlane.visible && highlightPlane.userData.target === shelf) {
-          highlightPlane.visible = false;
-          highlightPlane.userData.target = null;
-        } else {
-          const box = new THREE.Box3().setFromObject(shelf);
-          const center = new THREE.Vector3();
-          box.getCenter(center);
+            if (highlightPlane.visible && highlightPlane.userData.target === shelf) {
+              highlightPlane.visible = false;
+              highlightPlane.userData.target = null;
+            } else {
+                const box = new THREE.Box3().setFromObject(shelf);
+                const center = new THREE.Vector3();
+                box.getCenter(center);
 
-          highlightPlane.position.set(center.x, box.min.y + 5, center.z); // немного над полом
-          highlightPlane.scale.set(
-      (box.max.x - box.min.x) / 5,
-      1,
-      (box.max.z - box.min.z) / 5
-    );
-    highlightPlane.visible = true;
-    highlightPlane.userData.target = shelf;
-  }
-}
+                highlightPlane.position.set(center.x, box.min.y + 5, center.z); // немного над полом
+                highlightPlane.scale.set(
+            (box.max.x - box.min.x) / 5,
+            1,
+            (box.max.z - box.min.z) / 5
+          );
+          highlightPlane.visible = true;
+          highlightPlane.userData.target = shelf;
+        }
+      }
     };
+    
+    // Перемещение полок
+    const onMouseDblClick = (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(shelfModels, true);
+
+      if (intersects.length > 0) {
+        selectedShelf = intersects[0].object.parent; // Получаем всю полку
+        isDragging = true;
+        controlsEnabled = false; // Отключаем управление камерой
+        controls.enabled = false; // Замораживаем камеру
+      }
+    };
+
+
+    const onMouseMove = (event) => {
+      if (isDragging && selectedShelf) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const planeIntersect = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, planeIntersect);
+
+        if (planeIntersect) {
+          selectedShelf.position.set(planeIntersect.x, selectedShelf.position.y, planeIntersect.z);
+        }
+      }
+    };
+
+    const onMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        selectedShelf = null;
+        controlsEnabled = true; // Включаем управление камерой
+        controls.enabled = true; // Размораживаем камеру
+      }
+    };
+    const onMouseWheel = (event) => {
+      if (selectedShelf) {
+        const rotationSpeed = 0.5; // Скорость вращения
+        selectedShelf.rotation.z += event.deltaY * rotationSpeed * 0.01;
+      }
+    };
+
+    
 
     // Слушаем событие клика
     window.addEventListener('click', onMouseClick, false);
+    //  Двойной клик
+    window.addEventListener('dblclick', onMouseDblClick, false);
+    window.addEventListener('mousemove', onMouseMove, false);
+    window.addEventListener('mouseup', onMouseUp, false);
+    window.addEventListener('wheel', onMouseWheel, false);
 
     // PROPS NPC
     const createNpc = (position) => {
