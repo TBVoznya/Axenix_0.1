@@ -12,33 +12,29 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 export default {
   name: 'ModelViewer',
   mounted() {
-    // Инициализация сцены, камеры и рендера
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xffffff); // Голубой фон
-    const camera = new THREE.PerspectiveCamera(75, 805.7 / 451.7, 0.1, 1000);
+    scene.background = new THREE.Color(0xffffff);
+    const camera = new THREE.PerspectiveCamera(50, 1200 / 800, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(805.7, 451.7);
+    renderer.setSize(1200, 800);
 
-    // Добавление рендера в DOM
     this.$refs.modelViewer.appendChild(renderer.domElement);
 
-    // Настройка освещения
-    const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-    light.position.set(0, 200, 0);
+    const light = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
+    light.position.set(0, 300, 0);
     scene.add(light);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(0, 200, 100).normalize();
     scene.add(directionalLight);
 
-    // Загрузка модели GLTF
     const loader = new GLTFLoader();
     loader.load(
-      '/Shelter_Full(Textured+color).glb', // Укажите путь к вашей модели
+      '/MainScene(Textured+floor).glb', 
       (gltf) => {
         const model = gltf.scene;
-        model.scale.set(1, 1, 1); // Масштабирование модели
-        model.position.set(0, 0, 0); // Позиция модели
+        model.scale.set(1, 1, 1);
+        model.position.set(-5, 0, 0);
         scene.add(model);
       },
       (xhr) => {
@@ -49,16 +45,50 @@ export default {
       }
     );
 
-    // Позиционирование камеры
-    camera.position.z = 5;
+    loader.load(
+      '/Shelter_Full(Textured+color).glb', 
+      (gltf) => {
+        const shelfModel = gltf.scene;
+        shelfModel.scale.set(1, 1, 1); 
+        shelfModel.position.set(10, 0, 4);
+        shelfModel.rotation.set(0, 0, 0); 
+        scene.add(shelfModel);
+      },
+      (xhr) => {
+        console.log(`Загрузка полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
+      },
+      (error) => {
+        console.error('Ошибка загрузки полки:', error);
+      }
+    );
 
-    // Добавление OrbitControls для управления мышью
+    loader.load(
+      '/Shelter_Empty(Textured+color).glb', 
+      (gltf) => {
+        const shelfModel2 = gltf.scene;
+        shelfModel2.scale.set(1, 1, 1);
+        shelfModel2.position.set(10, 0, 10);
+        shelfModel2.rotation.set(0, 0, 0); 
+        scene.add(shelfModel2);
+      },
+      (xhr) => {
+        console.log(`Загрузка второй полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
+      },
+      (error) => {
+        console.error('Ошибка загрузки второй полки:', error);
+      }
+    );
+
+
+    
+    camera.position.set(80, 32, 65);
+
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; // Добавление плавности
-    controls.dampingFactor = 0.05;
+    controls.enableDamping = true; 
+    controls.dampingFactor = 0.08;
     controls.screenSpacePanning = false;
-    controls.minDistance = 1; // Минимальное расстояние камеры
-    controls.maxDistance = 20; // Максимальное расстояние камеры
+    controls.minDistance = 2; 
+    controls.maxDistance = 35; 
 
     // Анимация
     const animate = () => {
@@ -75,9 +105,9 @@ export default {
 <style>
 .model-viewer {
 position: absolute;
-width: 805.7px;
-height: 451.7px;
-top: 120px;
+width: 1200px;
+height: 800px;
+top: 180px;
 left: 435px;
 display: flex;
 justify-content: center;
