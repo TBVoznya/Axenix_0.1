@@ -34,7 +34,7 @@ export default {
     // Загрузка модели GLTF
     const loader = new GLTFLoader();
     loader.load(
-      '/Main_Scene(Textured).glb', // Укажите путь к вашей модели
+      '/Shelter_Full(Textured+color).glb', // Укажите путь к вашей модели
       (gltf) => {
         const model = gltf.scene;
         model.scale.set(1, 1, 1); // Масштабирование модели
