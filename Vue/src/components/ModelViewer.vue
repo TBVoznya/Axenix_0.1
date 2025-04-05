@@ -184,6 +184,9 @@ export default {
 
     const onMouseMove = (event) => {
       if (isDragging && selectedShelf) {
+        // Скрываем highlightPlane во время перемещения
+        highlightPlane.visible = false;
+
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -201,6 +204,12 @@ export default {
     const onMouseUp = () => {
       if (isDragging) {
         isDragging = false;
+
+        // Показываем highlightPlane после завершения перемещения
+        if (selectedShelf) {
+          highlightPlane.visible = true;
+        }
+
         selectedShelf = null;
         controlsEnabled = true; // Включаем управление камерой
         controls.enabled = true; // Размораживаем камеру
