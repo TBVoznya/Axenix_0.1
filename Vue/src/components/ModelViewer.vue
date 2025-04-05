@@ -28,6 +28,7 @@ export default {
     directionalLight.position.set(0, 200, 100).normalize();
     scene.add(directionalLight);
 
+    // PROPS LOADING
     const loader = new GLTFLoader();
     loader.load(
       '/MainScene(Textured+floor).glb', 
@@ -79,8 +80,65 @@ export default {
       }
     );
 
+    // PROPS NPC
+    const createNpc = (position) => {
+      loader.load('/Man_0.glb', (gltf) => {
+        const npc = gltf.scene;
+        npc.scale.set(0.6, 0.6, 0.6);
+        npc.position.copy(position);
+        npc.rotation.set(0, Math.PI, 0); // Начальный поворот
+        scene.add(npc);
 
-    
+        // Точки для цикличного движения
+        const points = [
+          new THREE.Vector3(-5, 0, 8),
+          new THREE.Vector3(5, 0, 8),
+          new THREE.Vector3(5, 0, 15)
+        ];
+        let currentTargetIndex = 0;
+        const speed = 0.04;
+        let lastTurnTime = Date.now();
+        let startRotation = npc.rotation.y;
+        let targetRotation = 0;
+
+        // Функция плавного поворота
+        const rotateNpc = () => {
+          const deltaTime = Date.now() - lastTurnTime;
+          const t = Math.min(deltaTime / 1000, 1);
+          npc.rotation.y = THREE.MathUtils.lerp(startRotation, targetRotation, t);
+          if (t < 1) {
+            requestAnimationFrame(rotateNpc);
+          }
+        };
+
+        const moveNpc = () => {
+          const targetPosition = points[currentTargetIndex];
+          const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
+          npc.position.add(direction.multiplyScalar(speed));
+
+          if (npc.position.distanceTo(targetPosition) < 0.1) {
+            // Пауза перед движением в следующую точку (рандом от 1 до 3 секунд)
+            setTimeout(() => {
+              currentTargetIndex = (currentTargetIndex + 1) % points.length;
+              targetRotation = Math.atan2(direction.z, direction.x);
+              startRotation = npc.rotation.y;
+              lastTurnTime = Date.now();
+              rotateNpc();
+            }, Math.random() * 2000 + 1000); // 1000 - 3000 миллисекунд
+          }
+
+          requestAnimationFrame(moveNpc);
+        };
+
+        moveNpc();
+      });
+    };
+
+    createNpc(new THREE.Vector3(-5, 0, 8));
+    createNpc(new THREE.Vector3(0, 0, 8));
+    createNpc(new THREE.Vector3(5, 0, 8));
+
+
     camera.position.set(80, 32, 65);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -112,7 +170,7 @@ left: 435px;
 display: flex;
 justify-content: center;
 align-items: center;
-background-color: #ffffff; /* Изменено на белый */
+background-color: #ffffff; 
 border: 1px solid #ddd;
 border-radius: 8px;
 text-align: center;
