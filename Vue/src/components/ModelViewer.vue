@@ -1,11 +1,46 @@
 <template>
   <div class="model-viewer" ref="modelViewer">
-    <!-- 3D модель будет отображаться здесь -->
+    <!-- 3D модель -->
   </div>
 
-  <div v-if="showInfoPanel" class="info-panel">
+  <div v-if="showInfoPanel" class="info-panel" :style="{ height: panelHeight }">
     <p>Вы выбрали полку {{ selectedShelfName }}</p>
-    <!-- Здесь можно потом сделать вывод ID, названия, содержимого и т.п. -->
+
+    <!-- Форма для добавления продукта -->
+    <div class="add-product-form">
+      <input 
+        type="text" 
+        v-model="newProduct.name" 
+        placeholder="Введите название продукта" 
+      />
+      <input 
+        type="number" 
+        v-model.number="newProduct.quantity" 
+        placeholder="Введите количество" 
+        min="1" 
+      />
+      <button @click="addProduct">Добавить продукт</button>
+    </div>
+
+    <!-- Таблица продуктов -->
+    <table>
+      <thead>
+        <tr>
+          <th>Название продукта</th>
+          <th>Количество</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(product, index) in currentShelfProducts" :key="index">
+          <td>{{ product.name }}</td>
+          <td>{{ product.quantity }}</td>
+          <td>
+            <button @click="removeProduct(index)">Удалить</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -19,12 +54,44 @@ import axios from 'axios';
 export default {
   name: 'ModelViewer',
   data() {
-    return {
-      selectedShelfName: '',
-      showInfoPanel: false, 
-      selectedShelf: null  
-    };
+  return {
+    selectedShelfName: '',
+    showInfoPanel: false,
+    selectedShelf: null,
+    shelfProducts: {}, // Хранение продуктов для каждой полки
+    currentShelfProducts: [], // Продукты текущей выбранной полки
+    newProduct: { name: '', quantity: 1 } // Данные нового продукта
+  };
+},
+  computed: {
+    panelHeight() {
+      // Рассчитываем высоту панели: 50px на заголовок + 40px на каждую строку
+      const baseHeight = 300; // Высота заголовка и кнопок
+      const rowHeight = 40; // Высота одной строки
+      const maxHeight = 400; // Максимальная высота панели
+      const calculatedHeight = baseHeight + this.currentShelfProducts.length * rowHeight;
+
+      return Math.min(calculatedHeight, maxHeight) + 'px';
+    }
   },
+  methods: {
+  addProduct() {
+    if (this.newProduct.name.trim() && this.newProduct.quantity > 0) {
+      this.currentShelfProducts.push({ 
+        name: this.newProduct.name.trim(), 
+        quantity: this.newProduct.quantity 
+      });
+      // Сброс формы
+      this.newProduct.name = '';
+      this.newProduct.quantity = 1;
+    } else {
+      alert('Введите корректные данные для продукта!');
+    }
+  },
+  removeProduct(index) {
+    this.currentShelfProducts.splice(index, 1);
+  }
+},
   mounted() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xffffff);
@@ -128,17 +195,15 @@ export default {
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(shelfModels, true); // true — проверка вложенных объектов
+      const intersects = raycaster.intersectObjects(shelfModels, true);
 
       if (intersects.length > 0) {
         let clickedObject = intersects[0].object;
 
-        // Подняться до объекта из shelfModels
         let shelf = clickedObject;
         while (shelf.parent && !shelfModels.includes(shelf)) {
           shelf = shelf.parent;
         }
-
         // Подсветка
         const box = new THREE.Box3().setFromObject(shelf);
         const center = new THREE.Vector3();
@@ -152,18 +217,17 @@ export default {
         );
         highlightPlane.visible = true;
         highlightPlane.userData.target = shelf;
-
-        // UI
-        this.selectedShelfName = shelf.name || 'Без имени';
+        const shelfName = shelf.name || 'Без имени';
+        this.selectedShelfName = shelfName;
         this.showInfoPanel = true;
         this.selectedShelf = shelf;
 
-      } else {
-        highlightPlane.visible = false;
-        this.showInfoPanel = false;
-        this.selectedShelf = null;
-        this.selectedShelfName = '';
-      }
+        // Инициализация продуктов для полки, если их еще нет
+        if (!this.shelfProducts[shelfName]) {
+          this.shelfProducts[shelfName] = [];
+        }
+        this.currentShelfProducts = this.shelfProducts[shelfName];
+      } 
     };
     
     // Перемещение полок
@@ -338,15 +402,56 @@ export default {
 
 .info-panel {
   position: absolute;
-  top: 1000px; /* чуть ниже модели */
-  left: 435px;
-  width: 1200px;
-  height: 100px;
+  top: 60%; /* чуть ниже модели */
+  left: 1%;
+  width: 450px;
   background-color: rgba(0, 0, 0, 0.8);
   color: white;
   padding: 16px;
   border-radius: 8px;
   font-size: 16px;
   z-index: 10;
+  overflow-y: auto; /* Добавляем прокрутку, если записей слишком много */
+  transition: height 0.3s ease; /* Плавное изменение высоты */
+}
+.info-panel th, .info-panel td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+.info-panel th {
+  background-color: #444;
+  color: white;
+}
+
+.info-panel input[type="number"] {
+  width: 60px;
+}
+.add-product-form {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.add-product-form input {
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.add-product-form button {
+  padding: 8px 16px;
+  font-size: 14px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.add-product-form button:hover {
+  background-color: #0056b3;
 }
 </style>
