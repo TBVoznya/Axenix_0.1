@@ -13,6 +13,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import axios from 'axios';
+
 
 export default {
   name: 'ModelViewer',
@@ -30,8 +32,6 @@ export default {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(1200, 800);
 
-    
-
     this.$refs.modelViewer.appendChild(renderer.domElement);
 
     const light = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
@@ -43,21 +43,28 @@ export default {
     scene.add(directionalLight);
 
     const highlightMaterial = new THREE.MeshBasicMaterial({
-  color: 0xffff00,
-  transparent: true,
-  opacity: 0.3,
-  side: THREE.DoubleSide,
-  });
+      color: 0xffff00,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide,
+    });
 
-  const highlightGeometry = new THREE.PlaneGeometry(5, 5); // размер можно будет менять
-  const highlightPlane = new THREE.Mesh(highlightGeometry, highlightMaterial);
-  highlightPlane.rotation.x = -Math.PI / 2; // горизонтально (если над полкой сверху)
-  highlightPlane.visible = false; 
-  scene.add(highlightPlane);
+    const highlightGeometry = new THREE.PlaneGeometry(5, 5); // размер можно будет менять
+    const highlightPlane = new THREE.Mesh(highlightGeometry, highlightMaterial);
+    highlightPlane.rotation.x = -Math.PI / 2; // горизонтально (если над полкой сверху)
+    highlightPlane.visible = false; // по умолчанию скрыт
+    scene.add(highlightPlane);
 
+    // Raycaster для отслеживания кликов
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const shelfModels = [];
+    const shelfModels = []; // Массив для хранения моделей
+
+    let selectedShelf = null; // Полка, которую перемещаем
+    let isDragging = false; // Флаг перемещения
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // Горизонтальная плоскость
+    const planeIntersect = new THREE.Vector3(); // Точка пересечения с плоскостью
+    let controlsEnabled = true;
 
     // PROPS LOADING
     const loader = new GLTFLoader();
@@ -105,7 +112,7 @@ export default {
         shelfModel2.rotation.set(0, 0, 0); 
         shelfModel2.name = 'Полка 2';
         scene.add(shelfModel2);
-        shelfModels.push(shelfModel2);
+        shelfModels.push(shelfModel2); // Добавляем в список
       },
       (xhr) => {
         console.log(`Загрузка второй полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
@@ -115,108 +122,182 @@ export default {
       }
     );
 
-
-    const vm = this;
+    // Обработчик кликов
     const onMouseClick = (event) => {
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(shelfModels, true); // true — проверка вложенных объектов
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(shelfModels, true); // true — проверка вложенных объектов
 
-  if (intersects.length > 0) {
-    let clickedObject = intersects[0].object;
+      if (intersects.length > 0) {
+        let clickedObject = intersects[0].object;
 
-    // Подняться до объекта из shelfModels
-    let shelf = clickedObject;
-    while (shelf.parent && !shelfModels.includes(shelf)) {
-      shelf = shelf.parent;
-    }
+        // Подняться до объекта из shelfModels
+        let shelf = clickedObject;
+        while (shelf.parent && !shelfModels.includes(shelf)) {
+          shelf = shelf.parent;
+        }
 
-    // Подсветка
-    const box = new THREE.Box3().setFromObject(shelf);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
+        // Подсветка
+        const box = new THREE.Box3().setFromObject(shelf);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
 
-    highlightPlane.position.set(center.x, box.min.y + 5, center.z);
-    highlightPlane.scale.set(
-      (box.max.x - box.min.x) / 5,
-      1,
-      (box.max.z - box.min.z) / 5
-    );
-    highlightPlane.visible = true;
-    highlightPlane.userData.target = shelf;
+        highlightPlane.position.set(center.x, box.min.y + 5, center.z);
+        highlightPlane.scale.set(
+          (box.max.x - box.min.x) / 5,
+          1,
+          (box.max.z - box.min.z) / 5
+        );
+        highlightPlane.visible = true;
+        highlightPlane.userData.target = shelf;
 
-    // UI
-    vm.selectedShelfName = shelf.name || 'Без имени';
-    vm.showInfoPanel = true;
-    vm.selectedShelf = shelf;
+        // UI
+        this.selectedShelfName = shelf.name || 'Без имени';
+        this.showInfoPanel = true;
+        this.selectedShelf = shelf;
 
-  } else {
-    highlightPlane.visible = false;
-    vm.showInfoPanel = false;
-    vm.selectedShelf = null;
-    vm.selectedShelfName = '';
-  }
-};
+      } else {
+        highlightPlane.visible = false;
+        this.showInfoPanel = false;
+        this.selectedShelf = null;
+        this.selectedShelfName = '';
+      }
+    };
+    
+    // Перемещение полок
+    const onMouseDblClick = (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(shelfModels, true);
+
+      if (intersects.length > 0) {
+        selectedShelf = intersects[0].object.parent; // Получаем всю полку
+        isDragging = true;
+        controlsEnabled = false; // Отключаем управление камерой
+        controls.enabled = false; // Замораживаем камеру
+      }
+    };
+
+    const onMouseMove = (event) => {
+      if (isDragging && selectedShelf) {
+        // Скрываем highlightPlane во время перемещения
+        highlightPlane.visible = false;
+
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const planeIntersect = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, planeIntersect);
+
+        if (planeIntersect) {
+          selectedShelf.position.set(planeIntersect.x, selectedShelf.position.y, planeIntersect.z);
+        }
+      }
+    };
+
+    const onMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+
+        // Показываем highlightPlane после завершения перемещения
+        if (selectedShelf) {
+          highlightPlane.visible = true;
+        }
+
+        selectedShelf = null;
+        controlsEnabled = true; // Включаем управление камерой
+        controls.enabled = true; // Размораживаем камеру
+      }
+    };
+    const onMouseWheel = (event) => {
+      if (selectedShelf) {
+        const rotationSpeed = 0.5; // Скорость вращения
+        selectedShelf.rotation.z += event.deltaY * rotationSpeed * 0.01;
+      }
+    };
+
+    // Слушаем событие клика
     window.addEventListener('click', onMouseClick, false);
+    // Двойной клик
+    window.addEventListener('dblclick', onMouseDblClick, false);
+    window.addEventListener('mousemove', onMouseMove, false);
+    window.addEventListener('mouseup', onMouseUp, false);
+    window.addEventListener('wheel', onMouseWheel, false);
 
     // PROPS NPC
     const createNpc = (position, modelIndex = 0) => {
-  const modelPath = `/Man_${modelIndex}.glb`;
+      const modelPath = `/Man_${modelIndex}.glb`;
 
-  loader.load(modelPath, (gltf) => {
-    const npc = gltf.scene;
-    npc.scale.set(0.6, 0.6, 0.6);
-    npc.position.copy(position);
-    npc.rotation.set(0, Math.PI, 0);
-    scene.add(npc);
+      loader.load(modelPath, (gltf) => {
+        const npc = gltf.scene;
+        npc.scale.set(0.6, 0.6, 0.6);
+        npc.position.copy(position);
+        npc.rotation.set(0, Math.PI, 0);
+        scene.add(npc);
 
-    const points = [
-      new THREE.Vector3(-5, 0, 8),
-      new THREE.Vector3(5, 0, 8),
-      new THREE.Vector3(5, 0, 15)
-    ];
-    let currentTargetIndex = 0;
-    const speed = 0.04;
-    let lastTurnTime = Date.now();
-    let startRotation = npc.rotation.y;
-    let targetRotation = 0;
+        const points = [
+          new THREE.Vector3(-5, 0, 8),
+          new THREE.Vector3(5, 0, 8),
+          new THREE.Vector3(5, 0, 15)
+        ];
+        let currentTargetIndex = 0;
+        const speed = 0.04;
+        let lastTurnTime = Date.now();
+        let startRotation = npc.rotation.y;
+        let targetRotation = 0;
 
-    const rotateNpc = () => {
-      const deltaTime = Date.now() - lastTurnTime;
-      const t = Math.min(deltaTime / 1000, 1);
-      npc.rotation.y = THREE.MathUtils.lerp(startRotation, targetRotation, t);
-      if (t < 1) {
-        requestAnimationFrame(rotateNpc);
-      }
+        const rotateNpc = () => {
+          const deltaTime = Date.now() - lastTurnTime;
+          const t = Math.min(deltaTime / 1000, 1);
+          npc.rotation.y = THREE.MathUtils.lerp(startRotation, targetRotation, t);
+          if (t < 1) {
+            requestAnimationFrame(rotateNpc);
+          }
+        };
+
+        const moveNpc = () => {
+          const targetPosition = points[currentTargetIndex];
+          const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
+          npc.position.add(direction.multiplyScalar(speed));
+
+          if (npc.position.distanceTo(targetPosition) < 0.1) {
+            setTimeout(() => {
+              currentTargetIndex = (currentTargetIndex + 1) % points.length;
+              targetRotation = Math.atan2(direction.z, direction.x);
+              startRotation = npc.rotation.y;
+              lastTurnTime = Date.now();
+              rotateNpc();
+            }, Math.random() * 2000 + 1000);
+          }
+
+          requestAnimationFrame(moveNpc);
+        };
+
+        moveNpc();
+      });
     };
 
-    const moveNpc = () => {
-      const targetPosition = points[currentTargetIndex];
-      const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
-      npc.position.add(direction.multiplyScalar(speed));
+    createNpc(new THREE.Vector3(-5, 0, 8), 0); // Man_0.glb
+    createNpc(new THREE.Vector3(0, 0, 8), 1);  // Man_1.glb
+    createNpc(new THREE.Vector3(5, 0, 8), 2);  // Man_2.glb
 
-      if (npc.position.distanceTo(targetPosition) < 0.1) {
-        setTimeout(() => {
-          currentTargetIndex = (currentTargetIndex + 1) % points.length;
-          targetRotation = Math.atan2(direction.z, direction.x);
-          startRotation = npc.rotation.y;
-          lastTurnTime = Date.now();
-          rotateNpc();
-        }, Math.random() * 2000 + 1000);
-      }
-
-      requestAnimationFrame(moveNpc);
-    };
-
-    moveNpc();
-  });
-};
-
-createNpc(new THREE.Vector3(-5, 0, 8), 0); // Man_0.glb
-createNpc(new THREE.Vector3(0, 0, 8), 1);  // Man_1.glb
-createNpc(new THREE.Vector3(5, 0, 8), 2);  // Man_2.glb
+    // Загрузка покупателей с сервера и создание NPC
+    axios.get('http://localhost:8080/api/customer')
+      .then(response => {
+        const customers = response.data;
+        customers.forEach(c => {
+          createNpc(new THREE.Vector3(c.x, c.y, c.z));
+        });
+      })
+      .catch(error => {
+        console.error("Ошибка при загрузке покупателей:", error);
+      });
 
     camera.position.set(80, 32, 65);
 
@@ -227,6 +308,7 @@ createNpc(new THREE.Vector3(5, 0, 8), 2);  // Man_2.glb
     controls.minDistance = 2; 
     controls.maxDistance = 35; 
 
+    // Анимация
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update(); // Обновление контролов
@@ -240,21 +322,18 @@ createNpc(new THREE.Vector3(5, 0, 8), 2);  // Man_2.glb
 
 <style>
 .model-viewer {
-position: absolute;
-width: 1200px;
-height: 800px;
-top: 180px;
-left: 435px;
-display: flex;
-justify-content: center;
-align-items: center;
-background-color: #ffffff; 
-border: 1px solid #ddd;
-border-radius: 8px;
-text-align: center;
-font-family: Arial, sans-serif;
-font-size: 14px;
-color: #ffffff;
+  position: fixed;
+  width: 5.1%;
+  height: 3.3%;
+  left: 52.1%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ffffff;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #ffffff;
 }
 
 .info-panel {
