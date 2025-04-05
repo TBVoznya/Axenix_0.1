@@ -10,11 +10,17 @@
 
     <main>
       <div class="button-container-add">
-        <button class="add-button">
+        <button class="add-button" @click="togglePanel">
           <img src="@/assets/directions_walk.png" alt="icon1" class="btn-icon" />
           Добавить
-        </button>
+      </button>
       </div>
+      <div v-if="showPanel" class="add-panel">
+          <p>Выберите тип:</p>
+          <button class="panel-item">Элемент 1</button>
+          <button class="panel-item">Элемент 2</button>
+          <button class="panel-item">Элемент 3</button>
+        </div>
       <div class="statistic">
         <button class="stat-button">
           <img src="@/assets/add_circle.png" alt="icon1" class="btn-icon" />
@@ -34,6 +40,16 @@ import ModelViewer from './components/ModelViewer.vue'
 export default {
   components: {
     ModelViewer
+  },
+  data() {
+    return {
+      showPanel: false
+    }
+  },
+  methods: {
+    togglePanel() {
+      this.showPanel = !this.showPanel
+    }
   }
 }
 </script>
@@ -235,6 +251,38 @@ ul {
   position: fixed;
   top: 200px;
   left: 220px;
+}
+
+.add-panel {
+  margin-top: 10px;
+  background-color: #f3f3f3;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 25px;
+  color: #333;
+  position: absolute;  
+  top: 290px; 
+  left: 0;
+  height: 500px;
+  width: 380px; 
+}
+.panel-item {
+  padding: 8px 12px;
+  background-color: #6200ee;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.panel-item:hover {
+  background-color: #3700b3;
 }
 
 
