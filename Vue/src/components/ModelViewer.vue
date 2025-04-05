@@ -4,6 +4,7 @@
   </div>
 
   <div v-if="showInfoPanel" class="info-panel" :style="{ height: panelHeight }">
+    <button class="close-button" @click="closeInfoPanel">Закрыть</button>
     <p>Вы выбрали полку {{ selectedShelfName }}</p>
 
     <!-- Форма для добавления продукта -->
@@ -19,6 +20,13 @@
         placeholder="Введите количество" 
         min="1" 
       />
+      <input 
+        type="number" 
+        v-model.number="newProduct.price" 
+        placeholder="Введите цену" 
+        min="0" 
+        step="0.01" 
+      />
       <button @click="addProduct">Добавить продукт</button>
     </div>
 
@@ -28,6 +36,7 @@
         <tr>
           <th>Название продукта</th>
           <th>Количество</th>
+          <th>Цена</th>
           <th>Действия</th>
         </tr>
       </thead>
@@ -35,6 +44,7 @@
         <tr v-for="(product, index) in currentShelfProducts" :key="index">
           <td>{{ product.name }}</td>
           <td>{{ product.quantity }}</td>
+          <td>{{ product.price.toFixed(2) }}</td>
           <td>
             <button @click="removeProduct(index)">Удалить</button>
           </td>
@@ -60,7 +70,7 @@ export default {
     selectedShelf: null,
     shelfProducts: {}, // Хранение продуктов для каждой полки
     currentShelfProducts: [], // Продукты текущей выбранной полки
-    newProduct: { name: '', quantity: 1 } // Данные нового продукта
+    newProduct: { name: '', quantity: 1, price: 0.0 } // Данные нового продукта
   };
 },
   computed: {
@@ -76,20 +86,25 @@ export default {
   },
   methods: {
   addProduct() {
-    if (this.newProduct.name.trim() && this.newProduct.quantity > 0) {
+    if (this.newProduct.name.trim() && this.newProduct.quantity > 0 && this.newProduct.price >= 0) {
       this.currentShelfProducts.push({ 
         name: this.newProduct.name.trim(), 
-        quantity: this.newProduct.quantity 
+        quantity: this.newProduct.quantity,
+        price: this.newProduct.price
       });
       // Сброс формы
       this.newProduct.name = '';
       this.newProduct.quantity = 1;
+      this.newProduct.price = 0.0;
     } else {
       alert('Введите корректные данные для продукта!');
     }
   },
   removeProduct(index) {
     this.currentShelfProducts.splice(index, 1);
+  },
+  closeInfoPanel() {
+    this.showInfoPanel = false;
   }
 },
   mounted() {
@@ -453,5 +468,28 @@ export default {
 
 .add-product-form button:hover {
   background-color: #0056b3;
+}
+.add-product-form input {
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100px; /* Увеличиваем ширину для цены */
+}
+.close-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.close-button:hover {
+  background-color: #cc0000;
 }
 </style>

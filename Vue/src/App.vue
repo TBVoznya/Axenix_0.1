@@ -22,11 +22,50 @@
         <button class="panel-item" @click="addProduct">Товар</button>
       </div>
       <div class="statistic">
-        <button class="stat-button" @click="getStatistics">
+        <button class="stat-button" @click="toggleStatistics">
           <img src="@/assets/add_circle.png" alt="icon1" class="btn-icon" />
           Статистика
         </button>
       </div>
+
+      <!-- Таблица статистики -->
+      <div v-if="showStatistics" class="statistics-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Параметр</th>
+              <th>Значение</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Покупателей за день:</td>
+              <td>{{ statistics.customersPerDay }}</td>
+            </tr>
+            <tr>
+              <td>Пиковый Трафик:</td>
+              <td>{{ statistics.peakTraffic }}</td>
+            </tr>
+            <tr>
+              <td>Кол-во поломок:</td>
+              <td>{{ statistics.breakdowns }}</td>
+            </tr>
+            <tr>
+              <td>Кол-во проданных товаров:</td>
+              <td>{{ statistics.soldProducts }}</td>
+            </tr>
+            <tr>
+              <td>Эффективность акций:</td>
+              <td>{{ statistics.promotionEfficiency }}</td>
+            </tr>
+            <tr>
+              <td>Удовлетворённость:</td>
+              <td>{{ statistics.satisfaction }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="model-viewer-container">
         <ModelViewer :storeData="storeData" :newCustomers="newCustomers" :newShelves="newShelves" :newProducts="newProducts"/>
       </div>
@@ -43,17 +82,32 @@ export default {
     ModelViewer
   },
   data() {
-    return {
-      storeData: null,
-      showPanel: false,
-      newCustomers: [],
-      newShelves: [],
-      newProducts: []
+  return {
+    storeData: null,
+    showPanel: false,
+    showStatistics: false, // Флаг для отображения таблицы статистики
+    newCustomers: [],
+    newShelves: [],
+    newProducts: [],
+    statistics: {
+      customersPerDay: 0,
+      peakTraffic: 0,
+      breakdowns: 0,
+      soldProducts: 0,
+      promotionEfficiency: '0%',
+      satisfaction: '0%'
     }
-  },
+  };
+},
   methods: {
     togglePanel() {
       this.showPanel = !this.showPanel
+    },
+    toggleStatistics() {
+      this.showStatistics = !this.showStatistics;
+      if (this.showStatistics) {
+        this.getStatistics();
+      }
     },
     addCustomer() {
       const newCustomer = { 
@@ -305,5 +359,40 @@ main section {
 
 .model-viewer-container {
   margin-top: 180px;
+}
+
+.statistics-table {
+  position: absolute;
+  top: 30%; /* чуть ниже модели */
+  left: 1%;
+  width: 450px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: black;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  z-index: 10;
+  overflow-y: auto; /* Добавляем прокрутку, если записей слишком много */
+  transition: height 0.3s ease; /* Плавное изменение высоты */
+}
+
+.statistics-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.statistics-table th, .statistics-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+.statistics-table th {
+  background-color: #444;
+  color: white;
+}
+
+.statistics-table td {
+  background-color: #fff;
 }
 </style>
