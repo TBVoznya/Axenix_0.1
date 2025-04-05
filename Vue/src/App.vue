@@ -10,33 +10,73 @@
 
     <main>
       <div class="button-container-add">
-        <button class="add-button">
+        <button class="add-button" @click="addCustomer">
           <img src="@/assets/directions_walk.png" alt="icon1" class="btn-icon" />
           Добавить
         </button>
       </div>
       <div class="statistic">
-        <button class="stat-button">
+        <button class="stat-button" @click="getStatistics">
           <img src="@/assets/add_circle.png" alt="icon1" class="btn-icon" />
           Статистика
         </button>
       </div>
       <div class="model-viewer-container">
-        <ModelViewer />
+        <ModelViewer :storeData="storeData"/>
       </div>
     </main>
   </div>
 </template>
 
 <script>
+import axios from 'axios'
 import ModelViewer from './components/ModelViewer.vue'
 
 export default {
   components: {
     ModelViewer
+  },
+  data() {
+    return {
+      storeData: null
+    }
+  },
+  methods: {
+    addCustomer() {
+      // пример вызова для добавления покупателя
+      const newCustomer = { name: "Новый покупатель", profile: "любит скидки" }
+      axios.post('/api/customer', newCustomer)
+        .then(response => {
+          console.log("Покупатель добавлен", response)
+        })
+        .catch(error => {
+          console.error("Ошибка добавления покупателя", error)
+        })
+    },
+    getStatistics() {
+      // пример вызова для получения статистики
+      axios.get('/api/statistics')
+        .then(response => {
+          console.log("Статистика:", response.data)
+        })
+        .catch(error => {
+          console.error("Ошибка получения статистики", error)
+        })
+    }
+  },
+  mounted() {
+    // получаем данные магазина при загрузке
+    axios.get('/api/store')
+      .then(response => {
+        this.storeData = response.data
+      })
+      .catch(error => {
+        console.error('Ошибка получения данных магазина', error)
+      })
   }
 }
 </script>
+
 
 <style>
 * {

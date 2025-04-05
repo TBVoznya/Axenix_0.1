@@ -8,6 +8,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import axios from 'axios';
+
 
 export default {
   name: 'ModelViewer',
@@ -148,7 +150,18 @@ export default {
         npc.position.copy(position);
         npc.rotation.set(0, Math.PI, 0); // Начальный поворот
         scene.add(npc);
-
+        
+        // Загрузка покупателей с сервера и создание NPC
+        axios.get('http://localhost:8080/api/customer')
+  .then(response => {
+    const customers = response.data;
+    customers.forEach(c => {
+      createNpc(new THREE.Vector3(c.x, c.y, c.z));
+    });
+  })
+  .catch(error => {
+    console.error("Ошибка при загрузке покупателей:", error);
+  });
         // Точки для цикличного движения
         const points = [
           new THREE.Vector3(-5, 0, 8),
