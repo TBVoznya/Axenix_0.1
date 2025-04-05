@@ -234,20 +234,17 @@ export default {
 
 <style>
 .model-viewer {
-position: absolute;
-width: 1200px;
-height: 800px;
-top: 180px;
-left: 435px;
-display: flex;
-justify-content: center;
-align-items: center;
-background-color: #ffffff; 
-border: 1px solid #ddd;
-border-radius: 8px;
-text-align: center;
-font-family: Arial, sans-serif;
-font-size: 14px;
-color: #ffffff;
+  position: fixed;
+  width: 5.1%;
+  height: 3.3%;
+  left: 52.1%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ffffff;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #ffffff;
 }
 </style>
