@@ -4,7 +4,7 @@
   </div>
 
   <div v-if="showInfoPanel" class="info-panel">
-    <p>Вы выбрали полку</p>
+    <p>Вы выбрали полку {{ selectedShelfName }}</p>
     <!-- Здесь можно потом сделать вывод ID, названия, содержимого и т.п. -->
   </div>
 </template>
@@ -18,6 +18,7 @@ export default {
   name: 'ModelViewer',
   data() {
     return {
+      selectedShelfName: '',
       showInfoPanel: false, 
       selectedShelf: null  
     };
@@ -83,6 +84,7 @@ export default {
         shelfModel.scale.set(1, 1, 1); 
         shelfModel.position.set(10, 0, 4);
         shelfModel.rotation.set(0, 0, 0); 
+        shelfModel.name = 'Полка 1';
         scene.add(shelfModel);
         shelfModels.push(shelfModel); // Добавляем в список
       },
@@ -101,6 +103,7 @@ export default {
         shelfModel2.scale.set(1, 1, 1);
         shelfModel2.position.set(10, 0, 10);
         shelfModel2.rotation.set(0, 0, 0); 
+        shelfModel2.name = 'Полка 2';
         scene.add(shelfModel2);
         shelfModels.push(shelfModel2);
       },
@@ -114,17 +117,23 @@ export default {
 
 
     const vm = this;
-const onMouseClick = (event) => {
+    const onMouseClick = (event) => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(shelfModels);
+  const intersects = raycaster.intersectObjects(shelfModels, true); // true — проверка вложенных объектов
 
   if (intersects.length > 0) {
-    const clickedObject = intersects[0].object;
-    const shelf = clickedObject.parent;
+    let clickedObject = intersects[0].object;
 
+    // Подняться до объекта из shelfModels
+    let shelf = clickedObject;
+    while (shelf.parent && !shelfModels.includes(shelf)) {
+      shelf = shelf.parent;
+    }
+
+    // Подсветка
     const box = new THREE.Box3().setFromObject(shelf);
     const center = new THREE.Vector3();
     box.getCenter(center);
@@ -138,14 +147,17 @@ const onMouseClick = (event) => {
     highlightPlane.visible = true;
     highlightPlane.userData.target = shelf;
 
+    // UI
+    vm.selectedShelfName = shelf.name || 'Без имени';
     vm.showInfoPanel = true;
     vm.selectedShelf = shelf;
+
   } else {
     highlightPlane.visible = false;
     vm.showInfoPanel = false;
     vm.selectedShelf = null;
+    vm.selectedShelfName = '';
   }
-  
 };
     window.addEventListener('click', onMouseClick, false);
 
