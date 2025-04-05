@@ -2,6 +2,11 @@
   <div class="model-viewer" ref="modelViewer">
     <!-- 3D модель будет отображаться здесь -->
   </div>
+
+  <div v-if="showInfoPanel" class="info-panel">
+    <p>Вы выбрали полку</p>
+    <!-- Здесь можно потом сделать вывод ID, названия, содержимого и т.п. -->
+  </div>
 </template>
 
 <script>
@@ -11,6 +16,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 export default {
   name: 'ModelViewer',
+  data() {
+    return {
+      showInfoPanel: false, 
+      selectedShelf: null  
+    };
+  },
   mounted() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xffffff);
@@ -40,13 +51,12 @@ export default {
   const highlightGeometry = new THREE.PlaneGeometry(5, 5); // размер можно будет менять
   const highlightPlane = new THREE.Mesh(highlightGeometry, highlightMaterial);
   highlightPlane.rotation.x = -Math.PI / 2; // горизонтально (если над полкой сверху)
-  highlightPlane.visible = false; // по умолчанию скрыт
+  highlightPlane.visible = false; 
   scene.add(highlightPlane);
 
-    // Raycaster для отслеживания кликов
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const shelfModels = []; // Массив для хранения моделей
+    const shelfModels = [];
 
     // PROPS LOADING
     const loader = new GLTFLoader();
@@ -92,7 +102,7 @@ export default {
         shelfModel2.position.set(10, 0, 10);
         shelfModel2.rotation.set(0, 0, 0); 
         scene.add(shelfModel2);
-        shelfModels.push(shelfModel2); // Добавляем в список
+        shelfModels.push(shelfModel2);
       },
       (xhr) => {
         console.log(`Загрузка второй полки: ${(xhr.loaded / xhr.total) * 100}% завершено`);
@@ -103,100 +113,98 @@ export default {
     );
 
 
-    // Обработчик кликов
-    const onMouseClick = (event) => {
-      // Нормализуем координаты мыши
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    const vm = this;
+const onMouseClick = (event) => {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-      // Считываем объекты, на которых был клик
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(shelfModels);
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObjects(shelfModels);
 
-      if (intersects.length > 0) {
-        const clickedObject = intersects[0].object;
-        const shelf = clickedObject.parent; // получаем всю полку, если она из группы
+  if (intersects.length > 0) {
+    const clickedObject = intersects[0].object;
+    const shelf = clickedObject.parent;
 
-        if (highlightPlane.visible && highlightPlane.userData.target === shelf) {
-          highlightPlane.visible = false;
-          highlightPlane.userData.target = null;
-        } else {
-          const box = new THREE.Box3().setFromObject(shelf);
-          const center = new THREE.Vector3();
-          box.getCenter(center);
+    const box = new THREE.Box3().setFromObject(shelf);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
 
-          highlightPlane.position.set(center.x, box.min.y + 5, center.z); // немного над полом
-          highlightPlane.scale.set(
+    highlightPlane.position.set(center.x, box.min.y + 5, center.z);
+    highlightPlane.scale.set(
       (box.max.x - box.min.x) / 5,
       1,
       (box.max.z - box.min.z) / 5
     );
     highlightPlane.visible = true;
     highlightPlane.userData.target = shelf;
-  }
-}
-    };
 
-    // Слушаем событие клика
+    vm.showInfoPanel = true;
+    vm.selectedShelf = shelf;
+  } else {
+    highlightPlane.visible = false;
+    vm.showInfoPanel = false;
+    vm.selectedShelf = null;
+  }
+  
+};
     window.addEventListener('click', onMouseClick, false);
 
     // PROPS NPC
-    const createNpc = (position) => {
-      loader.load('/Man_0.glb', (gltf) => {
-        const npc = gltf.scene;
-        npc.scale.set(0.6, 0.6, 0.6);
-        npc.position.copy(position);
-        npc.rotation.set(0, Math.PI, 0); // Начальный поворот
-        scene.add(npc);
+    const createNpc = (position, modelIndex = 0) => {
+  const modelPath = `/Man_${modelIndex}.glb`;
 
-        // Точки для цикличного движения
-        const points = [
-          new THREE.Vector3(-5, 0, 8),
-          new THREE.Vector3(5, 0, 8),
-          new THREE.Vector3(5, 0, 15)
-        ];
-        let currentTargetIndex = 0;
-        const speed = 0.04;
-        let lastTurnTime = Date.now();
-        let startRotation = npc.rotation.y;
-        let targetRotation = 0;
+  loader.load(modelPath, (gltf) => {
+    const npc = gltf.scene;
+    npc.scale.set(0.6, 0.6, 0.6);
+    npc.position.copy(position);
+    npc.rotation.set(0, Math.PI, 0);
+    scene.add(npc);
 
-        // Функция плавного поворота
-        const rotateNpc = () => {
-          const deltaTime = Date.now() - lastTurnTime;
-          const t = Math.min(deltaTime / 1000, 1);
-          npc.rotation.y = THREE.MathUtils.lerp(startRotation, targetRotation, t);
-          if (t < 1) {
-            requestAnimationFrame(rotateNpc);
-          }
-        };
+    const points = [
+      new THREE.Vector3(-5, 0, 8),
+      new THREE.Vector3(5, 0, 8),
+      new THREE.Vector3(5, 0, 15)
+    ];
+    let currentTargetIndex = 0;
+    const speed = 0.04;
+    let lastTurnTime = Date.now();
+    let startRotation = npc.rotation.y;
+    let targetRotation = 0;
 
-        const moveNpc = () => {
-          const targetPosition = points[currentTargetIndex];
-          const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
-          npc.position.add(direction.multiplyScalar(speed));
-
-          if (npc.position.distanceTo(targetPosition) < 0.1) {
-            // Пауза перед движением в следующую точку (рандом от 1 до 3 секунд)
-            setTimeout(() => {
-              currentTargetIndex = (currentTargetIndex + 1) % points.length;
-              targetRotation = Math.atan2(direction.z, direction.x);
-              startRotation = npc.rotation.y;
-              lastTurnTime = Date.now();
-              rotateNpc();
-            }, Math.random() * 2000 + 1000); // 1000 - 3000 миллисекунд
-          }
-
-          requestAnimationFrame(moveNpc);
-        };
-
-        moveNpc();
-      });
+    const rotateNpc = () => {
+      const deltaTime = Date.now() - lastTurnTime;
+      const t = Math.min(deltaTime / 1000, 1);
+      npc.rotation.y = THREE.MathUtils.lerp(startRotation, targetRotation, t);
+      if (t < 1) {
+        requestAnimationFrame(rotateNpc);
+      }
     };
 
-    createNpc(new THREE.Vector3(-5, 0, 8));
-    createNpc(new THREE.Vector3(0, 0, 8));
-    createNpc(new THREE.Vector3(5, 0, 8));
+    const moveNpc = () => {
+      const targetPosition = points[currentTargetIndex];
+      const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
+      npc.position.add(direction.multiplyScalar(speed));
+
+      if (npc.position.distanceTo(targetPosition) < 0.1) {
+        setTimeout(() => {
+          currentTargetIndex = (currentTargetIndex + 1) % points.length;
+          targetRotation = Math.atan2(direction.z, direction.x);
+          startRotation = npc.rotation.y;
+          lastTurnTime = Date.now();
+          rotateNpc();
+        }, Math.random() * 2000 + 1000);
+      }
+
+      requestAnimationFrame(moveNpc);
+    };
+
+    moveNpc();
+  });
+};
+
+createNpc(new THREE.Vector3(-5, 0, 8), 0); // Man_0.glb
+createNpc(new THREE.Vector3(0, 0, 8), 1);  // Man_1.glb
+createNpc(new THREE.Vector3(5, 0, 8), 2);  // Man_2.glb
 
     camera.position.set(80, 32, 65);
 
@@ -207,7 +215,6 @@ export default {
     controls.minDistance = 2; 
     controls.maxDistance = 35; 
 
-    // Анимация
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update(); // Обновление контролов
@@ -236,5 +243,19 @@ text-align: center;
 font-family: Arial, sans-serif;
 font-size: 14px;
 color: #ffffff;
+}
+
+.info-panel {
+  position: absolute;
+  top: 1000px; /* чуть ниже модели */
+  left: 435px;
+  width: 1200px;
+  height: 100px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  z-index: 10;
 }
 </style>
