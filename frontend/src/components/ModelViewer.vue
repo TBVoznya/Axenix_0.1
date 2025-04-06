@@ -74,7 +74,7 @@ export default {
       spawnInterval: null,
       spawnDelay: 5000,
       storeEntrance: new THREE.Vector3(-12, 0, 6),
-      waitingSpot: new THREE.Vector3(0, 0, 15),
+      waitingSpot: new THREE.Vector3(2, 0, -2),
       scene: null,
       loader: null,
       shelfModels: [],
@@ -122,7 +122,11 @@ export default {
       const modelPath = `/Man_${modelIndex}.glb`;
       
       this.loader.load(modelPath, (gltf) => {
+        
         const npc = gltf.scene;
+        this.$parent.incrementCustomerCounter();
+        this.$parent.peakTrafficCounter();
+
         npc.scale.set(0.5, 0.5, 0.5);
         npc.position.copy(this.storeEntrance);
         npc.rotation.set(0, Math.PI, 0);

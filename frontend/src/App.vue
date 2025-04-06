@@ -103,6 +103,12 @@ export default {
     togglePanel() {
       this.showPanel = !this.showPanel
     },
+    incrementCustomerCounter() {
+    this.statistics.customersPerDay++;
+  },
+  peakTrafficCounter() {
+    this.statistics.peakTraffic=+13;
+  },
     toggleStatistics() {
       this.showStatistics = !this.showStatistics;
       if (this.showStatistics) {
