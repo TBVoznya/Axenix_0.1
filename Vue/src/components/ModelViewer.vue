@@ -77,7 +77,10 @@ export default {
       waitingSpot: new THREE.Vector3(0, 0, 15),
       scene: null,
       loader: null,
-      shelfModels: []
+      shelfModels: [],
+      lastClickTime: 0,
+      isDragging: false,
+      controls: null
     };
   },
   computed: {
@@ -141,22 +144,16 @@ export default {
           const targetPosition = route[currentTargetIndex];
           const direction = new THREE.Vector3().subVectors(targetPosition, npc.position).normalize();
           
-          // Поворачиваем NPC в направлении движения
           npc.rotation.y = Math.atan2(direction.x, direction.z);
-          
-          // Двигаем NPC
           npc.position.add(direction.multiplyScalar(speed));
 
-          // Проверяем достижение цели
           if (npc.position.distanceTo(targetPosition) < 0.5) {
-            // Если это последняя точка - удаляем NPC
             if (currentTargetIndex === route.length - 1) {
               this.removeNpc(npc);
               if (animationId) cancelAnimationFrame(animationId);
               return;
             }
             
-            // Ожидание 3-4 секунды
             isWaiting = true;
             setTimeout(() => {
               isWaiting = false;
@@ -177,38 +174,43 @@ export default {
       this.npcList = this.npcList.filter(item => item !== npc);
     },
     startNpcSpawning() {
-  const shelfPositions = this.shelfModels.map(shelf => {
-    const box = new THREE.Box3().setFromObject(shelf);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    // Используем только X и Z координаты, Y оставляем на уровне пола (0)
-    return new THREE.Vector3(center.x, 0, center.z);
-  });
+      const shelfPositions = this.shelfModels.map(shelf => {
+        const box = new THREE.Box3().setFromObject(shelf);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        return new THREE.Vector3(center.x, 0, center.z);
+      });
 
-  if (shelfPositions.length === 0) {
-    console.warn('Нет полок для посещения NPC');
-    return;
-  }
+      if (shelfPositions.length === 0) {
+        console.warn('Нет полок для посещения NPC');
+        return;
+      }
 
-  // Создаем 3 NPC сразу при старте
-  for (let i = 0; i < 2; i++) {
-    const randomShelf = shelfPositions[Math.floor(Math.random() * shelfPositions.length)];
-    const randomModel = Math.floor(Math.random() * 3);
-    this.createNpc(randomShelf, randomModel);
-  }
+      for (let i = 0; i < 2; i++) {
+        const randomShelf = shelfPositions[Math.floor(Math.random() * shelfPositions.length)];
+        const randomModel = Math.floor(Math.random() * 3);
+        this.createNpc(randomShelf, randomModel);
+      }
 
-  // Запускаем цикличный спавн
-  this.spawnInterval = setInterval(() => {
-    const randomShelf = shelfPositions[Math.floor(Math.random() * shelfPositions.length)];
-    const randomModel = Math.floor(Math.random() * 3);
-    this.createNpc(randomShelf, randomModel);
-  }, this.spawnDelay);
-},
+      this.spawnInterval = setInterval(() => {
+        const randomShelf = shelfPositions[Math.floor(Math.random() * shelfPositions.length)];
+        const randomModel = Math.floor(Math.random() * 3);
+        this.createNpc(randomShelf, randomModel);
+      }, this.spawnDelay);
+    },
     stopNpcSpawning() {
       if (this.spawnInterval) {
         clearInterval(this.spawnInterval);
         this.spawnInterval = null;
       }
+    },
+    resetShelfHighlight(shelf) {
+      shelf.traverse((child) => {
+        if (child.isMesh && child.material.emissive) {
+          child.material.emissive.setHex(0x000000);
+          child.material.emissiveIntensity = 0;
+        }
+      });
     }
   },
   mounted() {
@@ -245,13 +247,13 @@ export default {
     scene.add(highlightPlane);
 
     const raycaster = new THREE.Raycaster();
+    raycaster.params.Points.threshold = 0.1;
+    raycaster.params.Line.threshold = 0.1;
     const mouse = new THREE.Vector2();
 
     let selectedShelf = null;
-    let isDragging = false;
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const planeIntersect = new THREE.Vector3();
-    let controlsEnabled = true;
 
     // Загрузка моделей
     this.loader.load('/MainScene(Textured+floor).glb', (gltf) => {
@@ -266,10 +268,9 @@ export default {
       shelfModel.scale.set(1, 1, 1);
       shelfModel.position.set(10, 0, 4);
       shelfModel.name = 'Полка 1';
+      shelfModel.userData.id = 'shelf-1';
       scene.add(shelfModel);
       this.shelfModels.push(shelfModel);
-      
-      // Автозапуск NPC после загрузки первой полки
       this.startNpcSpawning();
     });
 
@@ -278,12 +279,17 @@ export default {
       shelfModel2.scale.set(1, 1, 1);
       shelfModel2.position.set(10, 0, 10);
       shelfModel2.name = 'Полка 2';
+      shelfModel2.userData.id = 'shelf-2';
       scene.add(shelfModel2);
       this.shelfModels.push(shelfModel2);
     });
 
     // Обработчики событий
     const onMouseClick = (event) => {
+      const currentTime = new Date().getTime();
+      const isDoubleClick = (currentTime - this.lastClickTime) < 300;
+      this.lastClickTime = currentTime;
+
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -297,6 +303,25 @@ export default {
           shelf = shelf.parent;
         }
 
+        if (isDoubleClick) {
+          // Двойной клик - начало перемещения
+          if (selectedShelf) this.resetShelfHighlight(selectedShelf);
+          selectedShelf = shelf;
+          this.isDragging = true;
+          this.controls.enabled = false;
+          highlightPlane.visible = false;
+          
+          // Подсветка выбранной полки
+          shelf.traverse((child) => {
+            if (child.isMesh) {
+              child.material.emissive = new THREE.Color(0xffff00);
+              child.material.emissiveIntensity = 0.5;
+            }
+          });
+          return;
+        }
+
+        // Одинарный клик - подсветка и панель
         const box = new THREE.Box3().setFromObject(shelf);
         const center = new THREE.Vector3();
         box.getCenter(center);
@@ -321,73 +346,59 @@ export default {
       } 
     };
 
-    const onMouseDblClick = (event) => {
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(this.shelfModels, true);
-
-      if (intersects.length > 0) {
-        selectedShelf = intersects[0].object.parent;
-        isDragging = true;
-        controlsEnabled = false;
-        controls.enabled = false;
-      }
-    };
-
     const onMouseMove = (event) => {
-      if (isDragging && selectedShelf) {
-        highlightPlane.visible = false;
+      if (this.isDragging && selectedShelf) {
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
         raycaster.setFromCamera(mouse, camera);
-        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-        const planeIntersect = new THREE.Vector3();
         raycaster.ray.intersectPlane(plane, planeIntersect);
 
         if (planeIntersect) {
-          selectedShelf.position.set(planeIntersect.x, selectedShelf.position.y, planeIntersect.z);
+          // Ограничение области перемещения
+          const x = Math.max(-20, Math.min(20, planeIntersect.x));
+          const z = Math.max(-20, Math.min(20, planeIntersect.z));
+          selectedShelf.position.set(x, selectedShelf.position.y, z);
         }
       }
     };
 
     const onMouseUp = () => {
-      if (isDragging) {
-        isDragging = false;
+      if (this.isDragging) {
+        this.isDragging = false;
+        this.controls.enabled = true;
         if (selectedShelf) {
+          this.resetShelfHighlight(selectedShelf);
           highlightPlane.visible = true;
         }
-        selectedShelf = null;
-        controlsEnabled = true;
-        controls.enabled = true;
       }
     };
 
-    const onMouseWheel = (event) => {
-      if (selectedShelf) {
-        const rotationSpeed = 0.5;
-        selectedShelf.rotation.z += event.deltaY * rotationSpeed * 0.01;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && this.isDragging) {
+        this.isDragging = false;
+        this.controls.enabled = true;
+        if (selectedShelf) {
+          this.resetShelfHighlight(selectedShelf);
+          highlightPlane.visible = true;
+        }
       }
     };
 
     window.addEventListener('click', onMouseClick, false);
-    window.addEventListener('dblclick', onMouseDblClick, false);
     window.addEventListener('mousemove', onMouseMove, false);
     window.addEventListener('mouseup', onMouseUp, false);
-    window.addEventListener('wheel', onMouseWheel, false);
+    window.addEventListener('keydown', onKeyDown, false);
 
     camera.position.set(80, 32, 65);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 2;
-    controls.maxDistance = 35;
+    this.controls = new OrbitControls(camera, renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.08;
+    this.controls.screenSpacePanning = false;
+    this.controls.minDistance = 2;
+    this.controls.maxDistance = 35;
 
-    // Загрузка покупателей с сервера
     axios.get('http://localhost:8080/api/customer')
       .then(response => {
         const customers = response.data;
@@ -399,29 +410,27 @@ export default {
         console.error("Ошибка при загрузке покупателей:", error);
       });
 
-    // Анимация
     const animate = () => {
       requestAnimationFrame(animate);
-      controls.update();
+      this.controls.update();
       renderer.render(scene, camera);
     };
 
     animate();
 
-    // Очистка при уничтожении компонента
     this.$once('hook:beforeDestroy', () => {
       this.stopNpcSpawning();
       window.removeEventListener('click', onMouseClick);
-      window.removeEventListener('dblclick', onMouseDblClick);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('wheel', onMouseWheel);
+      window.removeEventListener('keydown', onKeyDown);
     });
   }
 };
 </script>
 
 <style>
+/* Ваши стили остаются без изменений */
 .model-viewer {
   position: fixed;
   width: 5.1%;
