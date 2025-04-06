@@ -94,7 +94,7 @@ export default {
   },
   methods: {
     addProduct() {
-      if (this.newProduct.name.trim() && this.newProduct.quantity > 0 && this.newProduct.price >= 0) {
+        if (this.newProduct.name.trim() && this.newProduct.quantity > 0 && this.newProduct.price >= 0) {
         this.currentShelfProducts.push({ 
           name: this.newProduct.name.trim(), 
           quantity: this.newProduct.quantity,
@@ -103,12 +103,17 @@ export default {
         this.newProduct.name = '';
         this.newProduct.quantity = 1;
         this.newProduct.price = 0.0;
+
+        // Обновляем модель полки
+        this.updateShelfModel(this.selectedShelfName);
       } else {
         alert('Введите корректные данные для продукта!');
       }
     },
     removeProduct(index) {
       this.currentShelfProducts.splice(index, 1);
+          // Обновляем модель полки
+      this.updateShelfModel(this.selectedShelfName);
     },
     closeInfoPanel() {
       this.showInfoPanel = false;
@@ -211,7 +216,32 @@ export default {
           child.material.emissiveIntensity = 0;
         }
       });
-    }
+    },
+    updateShelfModel(shelfName) {
+      const shelf = this.shelfModels.find(s => s.name === shelfName);
+      if (!shelf) return;
+
+      const hasProducts = this.shelfProducts[shelfName] && this.shelfProducts[shelfName].length > 0;
+      const modelPath = hasProducts 
+        ? '/Shelter_Full(Textured+color).glb' 
+        : '/Shelter_Empty(Textured+color).glb';
+
+      // Удаляем текущую модель полки
+      this.scene.remove(shelf);
+      this.shelfModels = this.shelfModels.filter(s => s !== shelf);
+
+      // Загружаем новую модель
+      this.loader.load(modelPath, (gltf) => {
+        const newShelfModel = gltf.scene;
+        newShelfModel.scale.set(1, 1, 1);
+        newShelfModel.position.copy(shelf.position);
+        newShelfModel.name = shelfName;
+        newShelfModel.userData.id = shelf.userData.id;
+
+        this.scene.add(newShelfModel);
+        this.shelfModels.push(newShelfModel);
+      });
+    },
   },
   mounted() {
     const scene = new THREE.Scene();
@@ -272,18 +302,23 @@ export default {
       scene.add(shelfModel);
       this.shelfModels.push(shelfModel);
       this.startNpcSpawning();
+      
+    // Устанавливаем начальную модель
+    this.updateShelfModel('Полка 1');
     });
 
     this.loader.load('/Shelter_Empty(Textured+color).glb', (gltf) => {
-      const shelfModel2 = gltf.scene;
-      shelfModel2.scale.set(1, 1, 1);
-      shelfModel2.position.set(10, 0, 10);
-      shelfModel2.name = 'Полка 2';
-      shelfModel2.userData.id = 'shelf-2';
-      scene.add(shelfModel2);
-      this.shelfModels.push(shelfModel2);
-    });
+    const shelfModel2 = gltf.scene;
+    shelfModel2.scale.set(1, 1, 1);
+    shelfModel2.position.set(10, 0, 10);
+    shelfModel2.name = 'Полка 2';
+    shelfModel2.userData.id = 'shelf-2';
+    this.scene.add(shelfModel2);
+    this.shelfModels.push(shelfModel2);
 
+    // Устанавливаем начальную модель
+    this.updateShelfModel('Полка 2');
+  });
     // Обработчики событий
     const onMouseClick = (event) => {
       const currentTime = new Date().getTime();
