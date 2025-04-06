@@ -32,7 +32,7 @@
 
     <!-- Таблица продуктов -->
     <table>
-      <thead>
+      <thead class="table">
         <tr>
           <th>Название продукта</th>
           <th>Количество</th>
@@ -450,26 +450,25 @@ export default {
   position: absolute;
   top: 60%;
   left: 1%;
-  width: 450px;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 16px;
+  width: 475px;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
   border-radius: 8px;
-  font-size: 16px;
-  z-index: 10;
-  overflow-y: auto;
-  transition: height 0.3s ease;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  color: black;
 }
 
 .info-panel th, .info-panel td {
-  border: 1px solid #ccc;
+  border: 1px solid #000000;
   padding: 8px;
   text-align: left;
 }
 
 .info-panel th {
-  background-color: #444;
-  color: white;
+  background-color: #ffffff;
+    color: rgb(0, 0, 0);
 }
 
 .info-panel input[type="number"] {
@@ -486,7 +485,7 @@ export default {
 .add-product-form input {
   padding: 8px;
   font-size: 14px;
-  border: 1px solid #ccc;
+  border: 1px solid #000000;
   border-radius: 4px;
   width: 100px;
 }
@@ -507,8 +506,8 @@ export default {
 
 .close-button {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 27.3px;
+  right: 1.3px;
   background-color: #ff4d4d;
   color: white;
   border: none;

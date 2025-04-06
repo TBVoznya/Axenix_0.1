@@ -363,17 +363,16 @@ main section {
 
 .statistics-table {
   position: absolute;
-  top: 30%; /* чуть ниже модели */
+  top: 30%;
   left: 1%;
-  width: 450px;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: black;
-  padding: 16px;
+  width: 475px;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
   border-radius: 8px;
-  font-size: 16px;
-  z-index: 10;
-  overflow-y: auto; /* Добавляем прокрутку, если записей слишком много */
-  transition: height 0.3s ease; /* Плавное изменение высоты */
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  color: black;
 }
 
 .statistics-table table {
@@ -388,9 +387,9 @@ main section {
 }
 
 .statistics-table th {
-  background-color: #444;
+  background-color: #007bdf;
   color: white;
-}
+} 
 
 .statistics-table td {
   background-color: #fff;
