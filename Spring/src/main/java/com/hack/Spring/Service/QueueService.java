@@ -17,6 +17,11 @@ public class QueueService {
     }
 
     public List<QueueInfoDto> simulateQueues() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'simulateQueues'");
+    }
+
+    /*public List<QueueInfoDto> simulateQueues() {
         List<ObjLocation> allObjects = locationRepository.findAll();
 
         // Предположим, что кассы — это те, у кого y == 0, а покупатели — y > 0
@@ -48,10 +53,10 @@ public class QueueService {
             dto.setCashierId(cashier.getObjId());
             dto.setQueueSize(queue.size());
             dto.setAvgServiceTime(queue.size() > 5 ? 15.0 : 8.0); // время больше при большой очереди
-
+    
             queues.add(dto);
         }
 
         return queues;
-    }
+    } */
 }
